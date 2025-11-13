@@ -2,13 +2,14 @@
 Visualización interactiva de bloques (estibas) en un contenedor Dry 20'.
 
 Uso típico (en Colab o Jupyter):
-
 import requests
 
-url = "https://raw.githubusercontent.com/USUARIO/REPO/main/contenedor_interactivo.py"
+url = "https://raw.githubusercontent.com/Judival30/MMAF_ECO_lib/main/PackViz.py"
 exec(requests.get(url).text)
 
+# Esto viene definido dentro del archivo .py
 mostrar_contenedor_interactivo()
+
 """
 
 import sys
