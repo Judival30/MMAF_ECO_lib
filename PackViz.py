@@ -178,19 +178,16 @@ def recompute_for(label):
 # ============================================================
 # FUNCIÓN PRINCIPAL PÚBLICA
 # ============================================================
-
 def mostrar_contenedor_interactivo():
     """
     Muestra una visualización interactiva del contenedor Dry 20'
     con bloques (estibas) usando ipywidgets (Jupyter/Colab).
-
-    Requisitos:
-      - Ejecutar en Jupyter Notebook / JupyterLab / Google Colab.
-      - Librerías: numpy, matplotlib, ipywidgets (se instalan automáticamente).
     """
 
+    from IPython.display import clear_output
+
     # ------------------------------
-    # Figura base
+    # Figura base (una sola figura)
     # ------------------------------
     fig = plt.figure(figsize=(9, 7))
     ax = fig.add_subplot(111, projection='3d')
@@ -215,14 +212,19 @@ def mostrar_contenedor_interactivo():
         ax.set_title("Contenedor Dry 20' — relleno progresivo")
 
         # contenedor vacío
-        add_cuboid(ax, Cuboid(0, 0, 0, CONT_L, CONT_W, CONT_H), alpha=0.03, linewidth=0.6)
+        add_cuboid(ax, Cuboid(0, 0, 0, CONT_L, CONT_W, CONT_H),
+                   alpha=0.03, linewidth=0.6)
 
         # Dibuja los primeros n_to_draw bloques
         n_to_draw_clamped = int(max(0, min(n_to_draw, state["nblocks"])))
         for k in range(n_to_draw_clamped):
             x0, y0, z0 = state["positions"][k]
-            add_cuboid(ax, Cuboid(x0, y0, z0, state["bl_L"], state["bl_W"], state["bl_H"]),
-                       alpha=0.22, linewidth=0.5)
+            add_cuboid(
+                ax,
+                Cuboid(x0, y0, z0, state["bl_L"], state["bl_W"], state["bl_H"]),
+                alpha=0.22,
+                linewidth=0.5
+            )
 
         ax.set_xlabel("Largo (mm)")
         ax.set_ylabel("Ancho (mm)")
@@ -264,6 +266,9 @@ def mostrar_contenedor_interactivo():
         layout=widgets.Layout(width='450px')
     )
 
+    # Output donde siempre se verá UNA sola figura
+    out_fig = widgets.Output()
+
     def actualizar(orientacion, bloques):
         # Recalcular orientación según selección
         st = recompute_for(orientacion)
@@ -275,24 +280,24 @@ def mostrar_contenedor_interactivo():
             bloques = bloques_widget.max
             bloques_widget.value = bloques
 
-        # Redibujar figura
-        redraw(bloques)
+        # Redibujar en el mismo output
+        with out_fig:
+            clear_output(wait=True)
+            redraw(bloques)
+            plt.show()
 
-        # En Colab/Jupyter inline, hay que volver a mostrar la figura
-        plt.close(fig)
-        display(fig)
-
-    out = widgets.interactive_output(
+    # Ligar widgets con la función
+    widgets.interactive_output(
         actualizar,
         {'orientacion': orient_widget, 'bloques': bloques_widget}
     )
 
-    # Mostrar controles y salida
-    display(orient_widget, bloques_widget, out)
+    # Mostrar controles y la salida de la figura
+    display(orient_widget, bloques_widget, out_fig)
 
     # Dibujo inicial
-    redraw(0)
-    plt.close(fig)
-    display(fig)
+    with out_fig:
+        clear_output(wait=True)
+        redraw(0)
+        plt.show()
 
-mostrar_contenedor_interactivo()
