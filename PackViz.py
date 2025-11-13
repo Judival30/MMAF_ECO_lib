@@ -294,3 +294,5 @@ def mostrar_contenedor_interactivo():
     redraw(0)
     plt.close(fig)
     display(fig)
+
+mostrar_contenedor_interactivo()
