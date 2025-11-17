@@ -1,94 +1,26 @@
-"""
-Visualización interactiva de bloques (estibas) en un contenedor Dry 20'.
-
-Uso típico (en Colab o Jupyter):
-import requests
-
-url = "https://raw.githubusercontent.com/Judival30/MMAF_ECO_lib/main/PackViz.py"
-exec(requests.get(url).text)
-
-# Esto viene definido dentro del archivo .py
-mostrar_contenedor_interactivo()
-
-"""
-
-import sys
-import subprocess
-
-# ============================================================
-# INSTALACIÓN AUTOMÁTICA DE LIBRERÍAS
-# ============================================================
-
-# (nombre_para_pip, nombre_para_import)
-_REQUIRED_LIBS = [
-    ("numpy", "numpy"),
-    ("matplotlib", "matplotlib"),
-    ("ipywidgets", "ipywidgets"),
-]
-
-def _install_libraries():
-    for pip_name, import_name in _REQUIRED_LIBS:
-        try:
-            __import__(import_name)
-        except ImportError:
-            print(f"Instalando {pip_name}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pip_name])
-
-_install_libraries()
-
-# ============================================================
-# IMPORTS PRINCIPALES
-# ============================================================
+# Requisitos: numpy, matplotlib, ipywidgets (ya viene en Colab)
 
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from dataclasses import dataclass
+
 import ipywidgets as widgets
-from IPython.display import display
+from IPython.display import display, clear_output
 
-# Habilitar manejo de widgets en Google Colab, si existe
-try:
-    from google.colab import output
-    output.enable_custom_widget_manager()
-except Exception:
-    pass
-
-# ============================================================
-# PARÁMETROS DEL PROBLEMA
-# ============================================================
-
-# Caja: h = 50 mm; ancho = 59 + 3h; largo = 6h - 22
-h = 50  # mm
-box_w = 59 + 3*h          # ancho  = 59 + 3h = 209
-box_l = 6*h - 22          # largo  = 6h - 22 = 278
-box_h = h                 # alto   = 50
-
-# Bloque (estiba): 10 alto, 5 ancho, 4 largo (en múltiplos de la caja)
-block_L0 = 4 * box_l      # 1112
-block_W0 = 5 * box_w      # 1045
-block_H0 = 10 * box_h     # 500
-
+# -------------------------------------------------
+# Parámetros del contenedor (constantes)
+# -------------------------------------------------
 # Contenedor (dimensiones internas) Dry 20'
 CONT_L, CONT_W, CONT_H = 5898, 2352, 2393  # largo, ancho, alto (mm)
 
-BOXES_PER_LAYER_BLOCK = 4 * 5      # 20 cajas por tendido
+# Cada bloque siempre tiene 4×5×10 cajas
+BOXES_PER_LAYER_BLOCK = 4 * 5            # 20 cajas por tendido
 BOXES_PER_BLOCK = BOXES_PER_LAYER_BLOCK * 10  # 200 cajas por bloque
 
-# Orientaciones posibles del BLOQUE dentro del contenedor
-ORIENTATIONS = {
-    "Orientación 1 (1112×1045×500)": (block_L0, block_W0, block_H0),
-    "Orientación 2 (1045×1112×500)": (block_W0, block_L0, block_H0),
-    "Orientación 3 (1112×500×1045)": (block_L0, block_H0, block_W0),
-    "Orientación 4 (500×1112×1045)": (block_H0, block_L0, block_W0),
-    "Orientación 5 (1045×500×1112)": (block_W0, block_H0, block_L0),
-    "Orientación 6 (500×1045×1112)": (block_H0, block_W0, block_L0),
-}
-
-# ============================================================
-# UTILIDADES GEOMÉTRICAS
-# ============================================================
-
+# -------------------------------------------------
+# Utilidades geométricas (no dependen de h)
+# -------------------------------------------------
 @dataclass
 class Cuboid:
     x: float
@@ -117,12 +49,7 @@ def cuboid_faces(c: Cuboid):
     ]
 
 def add_cuboid(ax, c: Cuboid, alpha=0.18, linewidth=0.6):
-    poly = Poly3DCollection(
-        cuboid_faces(c),
-        alpha=alpha,
-        edgecolor='k',
-        linewidth=linewidth
-    )
+    poly = Poly3DCollection(cuboid_faces(c), alpha=alpha, edgecolor='k', linewidth=linewidth)
     ax.add_collection3d(poly)
 
 def compute_fit(container_L, container_W, container_H, bl_L, bl_W, bl_H):
@@ -133,171 +60,178 @@ def compute_fit(container_L, container_W, container_H, bl_L, bl_W, bl_H):
     remL = container_L - nx * bl_L
     remW = container_W - ny * bl_W
     remH = container_H - nz * bl_H
-    return int(nx), int(ny), int(nz), int(nx*ny*nz), (remL, remW, remH)
+    return int(nx), int(ny), int(nz), int(nx * ny * nz), (remL, remW, remH)
 
 def block_positions(nx, ny, nz, bl_L, bl_W, bl_H):
     """Orden de llenado: piso por piso (z), luego a lo largo (x), luego a lo ancho (y)."""
     pos = []
-    for iz in range(nz):           # altura
-        for ix in range(nx):       # largo
-            for iy in range(ny):   # ancho
-                pos.append((ix*bl_L, iy*bl_W, iz*bl_H))
+    for iz in range(nz):
+        for ix in range(nx):
+            for iy in range(ny):
+                pos.append((ix * bl_L, iy * bl_W, iz * bl_H))
     return pos
 
-# ============================================================
-# CÁLCULO DE LA MEJOR ORIENTACIÓN (MÁS BLOQUES)
-# ============================================================
+# -------------------------------------------------
+# Función principal que recibe h
+# -------------------------------------------------
+def plotContenedor(h):
+    """
+    h: altura de la caja (mm).
+    Mantiene exactamente la misma lógica del código original,
+    solo que h ahora es un parámetro.
+    """
 
-best_label = None
-best_state = None
+    # ---------------------------------------------
+    # Parámetros del problema que dependen de h
+    # ---------------------------------------------
+    box_w = 59 + 3*h       # ancho
+    box_l = 6*h - 22       # largo
+    box_h = h              # alto
 
-for label, (bL, bW, bH) in ORIENTATIONS.items():
-    nx, ny, nz, nblocks, rem = compute_fit(CONT_L, CONT_W, CONT_H, bL, bW, bH)
-    if (best_state is None) or (nblocks > best_state["nblocks"]):
-        best_label = label
-        best_state = {
+    block_L0 = 4 * box_l      # 1112 para h=50
+    block_W0 = 5 * box_w      # 1045 para h=50
+    block_H0 = 10 * box_h     # 500  para h=50
+
+    # Orientaciones posibles del BLOQUE dentro del contenedor
+    ORIENTATIONS = {
+        "Orientación 1 ": (block_L0, block_W0, block_H0),
+        "Orientación 2 ": (block_W0, block_L0, block_H0),
+        "Orientación 3 ":  (block_L0, block_H0, block_W0),
+        "Orientación 4 ":  (block_H0, block_L0, block_W0),
+        "Orientación 5 ":  (block_W0, block_H0, block_L0),
+        "Orientación 6 ":  (block_H0, block_W0, block_L0),
+    }
+
+    def recompute_for(label):
+        bL, bW, bH = ORIENTATIONS[label]
+        nx, ny, nz, nblocks, rem = compute_fit(CONT_L, CONT_W, CONT_H, bL, bW, bH)
+        positions = block_positions(nx, ny, nz, bL, bW, bH)
+        return {
             "bl_L": bL, "bl_W": bW, "bl_H": bH,
             "nx": nx, "ny": ny, "nz": nz,
             "nblocks": nblocks,
-            "positions": block_positions(nx, ny, nz, bL, bW, bH),
+            "positions": positions,
             "rem": rem,
         }
 
-def recompute_for(label):
-    bL, bW, bH = ORIENTATIONS[label]
-    nx, ny, nz, nblocks, rem = compute_fit(CONT_L, CONT_W, CONT_H, bL, bW, bH)
-    positions = block_positions(nx, ny, nz, bL, bW, bH)
-    return {
-        "bl_L": bL, "bl_W": bW, "bl_H": bH,
-        "nx": nx, "ny": ny, "nz": nz,
-        "nblocks": nblocks,
-        "positions": positions,
-        "rem": rem,
-    }
+    # ---------------------------------------------
+    # Elegir orientación inicial (la que más bloques mete)
+    # ---------------------------------------------
+    best_label = None
+    best_state = None
+    for label, (bL, bW, bH) in ORIENTATIONS.items():
+        nx, ny, nz, nblocks, rem = compute_fit(CONT_L, CONT_W, CONT_H, bL, bW, bH)
+        if (best_state is None) or (nblocks > best_state["nblocks"]):
+            best_label = label
+            best_state = {
+                "bl_L": bL, "bl_W": bW, "bl_H": bH,
+                "nx": nx, "ny": ny, "nz": nz,
+                "nblocks": nblocks,
+                "positions": block_positions(nx, ny, nz, bL, bW, bH),
+                "rem": rem,
+            }
 
-# ============================================================
-# FUNCIÓN PRINCIPAL PÚBLICA
-# ============================================================
-def mostrar_contenedor_interactivo():
-    """
-    Muestra una visualización interactiva del contenedor Dry 20'
-    con bloques (estibas) usando ipywidgets (Jupyter/Colab).
-    """
-
-    from IPython.display import clear_output
-
-    # ------------------------------
-    # Figura base (una sola figura)
-    # ------------------------------
-    fig = plt.figure(figsize=(9, 7))
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Eje para texto resumen arriba
-    summary_ax = fig.add_axes([0.02, 0.88, 0.96, 0.1])
-    summary_ax.axis('off')
-    summary_text = summary_ax.text(
-        0.01, 0.5, "",
-        fontsize=10,
-        va='center',
-        ha='left',
-        family='monospace'
-    )
-
-    # Estado actual de orientación / bloques
+    # Estado mutable (dict)
     state = best_state.copy()
 
-    def redraw(n_to_draw: int):
-        """Redibuja el contenedor y los primeros n_to_draw bloques."""
-        ax.cla()
-        ax.set_title("Contenedor Dry 20' — relleno progresivo")
-
-        # contenedor vacío
-        add_cuboid(ax, Cuboid(0, 0, 0, CONT_L, CONT_W, CONT_H),
-                   alpha=0.03, linewidth=0.6)
-
-        # Dibuja los primeros n_to_draw bloques
-        n_to_draw_clamped = int(max(0, min(n_to_draw, state["nblocks"])))
-        for k in range(n_to_draw_clamped):
-            x0, y0, z0 = state["positions"][k]
-            add_cuboid(
-                ax,
-                Cuboid(x0, y0, z0, state["bl_L"], state["bl_W"], state["bl_H"]),
-                alpha=0.22,
-                linewidth=0.5
-            )
-
-        ax.set_xlabel("Largo (mm)")
-        ax.set_ylabel("Ancho (mm)")
-        ax.set_zlabel("Alto (mm)")
-        ax.set_xlim(0, CONT_L)
-        ax.set_ylim(0, CONT_W)
-        ax.set_zlim(0, CONT_H)
-        ax.view_init(elev=22, azim=35)
-
-        total_boxes = n_to_draw_clamped * BOXES_PER_BLOCK
-        remL = CONT_L - state["nx"] * state["bl_L"]
-        remW = CONT_W - state["ny"] * state["bl_W"]
-        remH = CONT_H - state["nz"] * state["bl_H"]
-        summary = (
-            f"Orientación bloque: {state['bl_L']}×{state['bl_W']}×{state['bl_H']} mm  |  "
-            f"Cap: {state['nx']}×{state['ny']}×{state['nz']} = {state['nblocks']} bloques  |  "
-            f"Dibujados: {n_to_draw_clamped} → Cajas: {total_boxes}  |  "
-            f"Sobrante (llenado completo): L={remL} W={remW} H={remH} mm"
-        )
-        summary_text.set_text(summary)
-
-    # ------------------------------
-    # Widgets interactivos
-    # ------------------------------
-    orient_widget = widgets.Dropdown(
+    # ---------------------------------------------
+    # Widgets para Colab (Dropdown + Slider)
+    # ---------------------------------------------
+    orientation_dd = widgets.Dropdown(
         options=list(ORIENTATIONS.keys()),
         value=best_label,
         description='Orientación:',
-        layout=widgets.Layout(width='450px')
+        style={'description_width': 'initial'},
+        layout=widgets.Layout(width='100%')
     )
 
-    bloques_widget = widgets.IntSlider(
+    blocks_slider = widgets.IntSlider(
         value=0,
         min=0,
-        max=best_state["nblocks"],
+        max=state["nblocks"],
         step=1,
         description='Bloques:',
         continuous_update=False,
-        layout=widgets.Layout(width='450px')
+        style={'description_width': 'initial'},
+        layout=widgets.Layout(width='100%')
     )
 
-    # Output donde siempre se verá UNA sola figura
-    out_fig = widgets.Output()
+    summary_html = widgets.HTML()
+    output_plot = widgets.Output()
 
-    def actualizar(orientacion, bloques):
-        # Recalcular orientación según selección
-        st = recompute_for(orientacion)
-        state.update(st)
-
-        # Ajustar el máximo del slider a la nueva capacidad
-        bloques_widget.max = max(state["nblocks"], 1)
-        if bloques > bloques_widget.max:
-            bloques = bloques_widget.max
-            bloques_widget.value = bloques
-
-        # Redibujar en el mismo output
-        with out_fig:
+    # ---------------------------------------------
+    # Funciones internas que usan el estado
+    # ---------------------------------------------
+    def draw():
+        """Redibuja la figura completa según el estado actual."""
+        with output_plot:
             clear_output(wait=True)
-            redraw(bloques)
+
+            fig = plt.figure(figsize=(9, 7))
+            ax = fig.add_subplot(111, projection='3d')
+            ax.set_title("Contenedor Dry — relleno progresivo")
+
+            # contenedor
+            add_cuboid(ax, Cuboid(0, 0, 0, CONT_L, CONT_W, CONT_H), alpha=0.03, linewidth=0.6)
+
+            # Número de bloques a dibujar
+            n_to_draw = int(max(0, min(blocks_slider.value, state["nblocks"])))
+
+            # Dibuja bloques
+            for k in range(n_to_draw):
+                x0, y0, z0 = state["positions"][k]
+                add_cuboid(ax, Cuboid(x0, y0, z0, state["bl_L"], state["bl_W"], state["bl_H"]),
+                           alpha=0.22, linewidth=0.5)
+
+            ax.set_xlabel("Largo (mm)")
+            ax.set_ylabel("Ancho (mm)")
+            ax.set_zlabel("Alto (mm)")
+            ax.set_xlim(0, CONT_L)
+            ax.set_ylim(0, CONT_W)
+            ax.set_zlim(0, CONT_H)
+            ax.view_init(elev=22, azim=35)
+
+            total_boxes = n_to_draw * BOXES_PER_BLOCK
+            remL = CONT_L - state["nx"] * state["bl_L"]
+            remW = CONT_W - state["ny"] * state["bl_W"]
+            remH = CONT_H - state["nz"] * state["bl_H"]
+
+            summary = (
+                f"<b>Orientación bloque:</b> {state['bl_L']}×{state['bl_W']}×{state['bl_H']} mm &nbsp;|&nbsp; "
+                f"<b>Capacidad:</b> {state['nx']}×{state['ny']}×{state['nz']} = {state['nblocks']} bloques &nbsp;|&nbsp; "
+                f"<b>Dibujados:</b> {n_to_draw} → <b>Cajas:</b> {total_boxes} &nbsp;|&nbsp; "
+                f"<b>Sobrante (llenado completo):</b> L={remL} mm, W={remW} mm, H={remH} mm"
+            )
+            summary_html.value = summary
+
             plt.show()
 
-    # Ligar widgets con la función
-    widgets.interactive_output(
-        actualizar,
-        {'orientacion': orient_widget, 'bloques': bloques_widget}
-    )
+    def on_orientation_change(change):
+        if change['name'] == 'value':
+            label = change['new']
+            st = recompute_for(label)
+            state.update(st)
+            # actualizar rango del slider
+            blocks_slider.max = max(state["nblocks"], 1)
+            if blocks_slider.value > blocks_slider.max:
+                blocks_slider.value = blocks_slider.max
+            draw()
 
-    # Mostrar controles y la salida de la figura
-    display(orient_widget, bloques_widget, out_fig)
+    def on_blocks_change(change):
+        if change['name'] == 'value':
+            draw()
 
-    # Dibujo inicial
-    with out_fig:
-        clear_output(wait=True)
-        redraw(0)
-        plt.show()
+    orientation_dd.observe(on_orientation_change, names='value')
+    blocks_slider.observe(on_blocks_change, names='value')
 
+    # Mostrar UI
+    ui = widgets.VBox([
+        orientation_dd,
+        blocks_slider,
+        summary_html
+    ])
+
+    display(ui, output_plot)
+
+    # dibujo inicial
+    draw()
