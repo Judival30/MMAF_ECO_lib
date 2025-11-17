@@ -11,16 +11,14 @@ from IPython.display import display, clear_output
 # -------------------------------------------------
 # Parámetros del contenedor (constantes)
 # -------------------------------------------------
-# Contenedor (dimensiones internas) Dry 20'
+# Contenedor (dimensiones internas)
 CONT_L, CONT_W, CONT_H = 5898, 2352, 2393  # largo, ancho, alto (mm)
 
 # Cada bloque siempre tiene 4×5×10 cajas
 BOXES_PER_LAYER_BLOCK = 4 * 5            # 20 cajas por tendido
 BOXES_PER_BLOCK = BOXES_PER_LAYER_BLOCK * 10  # 200 cajas por bloque
 
-# -------------------------------------------------
-# Utilidades geométricas (no dependen de h)
-# -------------------------------------------------
+
 @dataclass
 class Cuboid:
     x: float
@@ -77,13 +75,8 @@ def block_positions(nx, ny, nz, bl_L, bl_W, bl_H):
 def plotContenedor(h):
     """
     h: altura de la caja (mm).
-    Mantiene exactamente la misma lógica del código original,
-    solo que h ahora es un parámetro.
     """
 
-    # ---------------------------------------------
-    # Parámetros del problema que dependen de h
-    # ---------------------------------------------
     box_w = 59 + 3*h       # ancho
     box_l = 6*h - 22       # largo
     box_h = h              # alto
@@ -114,9 +107,7 @@ def plotContenedor(h):
             "rem": rem,
         }
 
-    # ---------------------------------------------
-    # Elegir orientación inicial (la que más bloques mete)
-    # ---------------------------------------------
+
     best_label = None
     best_state = None
     for label, (bL, bW, bH) in ORIENTATIONS.items():
@@ -134,9 +125,7 @@ def plotContenedor(h):
     # Estado mutable (dict)
     state = best_state.copy()
 
-    # ---------------------------------------------
-    # Widgets para Colab (Dropdown + Slider)
-    # ---------------------------------------------
+
     orientation_dd = widgets.Dropdown(
         options=list(ORIENTATIONS.keys()),
         value=best_label,
